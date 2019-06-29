@@ -5,6 +5,8 @@ import traceback
 import websockets
 import tweepy
 
+from os.path import exists
+
 TEAMS = [
     "Hare", # 1
     "Tortoise",
@@ -105,6 +107,9 @@ class GrandPrix():
                 traceback.print_exc(e)
     
     async def tweet(self, msg, retry = 5):
+        if not self.twit:
+            return
+
         try:
             print('Tweeting:', msg)
             self.twit.update_status(msg)
@@ -161,6 +166,10 @@ def checkLeaders(old, new):
 
 
 def twitInit():
+    if not exists('twitAuth.json'):
+        print("'twitAuth.json' not found. Bot wont tweet.")
+        return None
+
     with open('twitAuth.json', 'r') as f:
         j = json.load(f)
 
