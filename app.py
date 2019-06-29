@@ -122,15 +122,13 @@ class GrandPrix():
             feed = json.loads(data['data'])
             scores = feed['scores']
             scores.sort(key = lambda i: i['score_dist'], reverse = True)
-            print(len(scores))
             leaders = [t for t in scores if 'score_dist' in t and t['score_pct'] == 1] # Check if scores exists | Day4 had no scores for the first msg
-            print(len(leaders))
             leadersIDs = [t['teamid'] for t in leaders]
             leadermsg = randMsg_leader(leaders) if leaders else ""
 
             if feed['sale_day'] != self.day:
                 if self.day != -1:
-                    finalscores = self.scores if leaders == [] else scores
+                    finalscores = self.scores
                     msg = f"Day {self.day+1} of the race has ended!\n1st {teamName(finalscores[0])}\n2nd {teamName(finalscores[1])}\n3rd {teamName(finalscores[2])}\n4th {teamName(finalscores[3])}\n5th {teamName(finalscores[4])}"
                     print(msg)
                     await self.tweet(msg)
@@ -145,11 +143,11 @@ class GrandPrix():
             self.scores = scores
 
             print(f"Day {feed['sale_day']+1} of the race!")
-            print(leadermsg)
-            print(f"TID{' '*5}Team{' '*2}Score dist{' '*10}score%{' '*15}Mult_raw{' '*18}total boost-deboost | Current boost-deboost")
+            print(f"Leader(s): {formatLeader(leaders)}")
+            print(f"TID{' '*5}Team{' '*2}Score{' '*4}Score%{' '*2}Mult_raw{' '*2}total boost-deboost | Current boost-deboost")
 
             for team in scores:
-                print(f"{team['teamid']} {TEAMS[team['teamid']-1]:>10}: {int(team['score_dist']):<10} {team['score_pct']:>20} {team['current_multiplier']:<25} {team['total_boosts']} - {team['total_deboosts']} = {int(team['total_boosts']) - int(team['total_deboosts'])} | {team['current_active_boosts']} - {team['current_active_deboosts']} = {team['current_active_boosts'] - team['current_active_deboosts']}")
+                print(f"{team['teamid']} {TEAMS[team['teamid']-1]:>10}: {team['score_dist']:.2f}{' '*3}{team['score_pct']:.3f}{' '*3}{team['current_multiplier']:.5f}{' '*3}{team['total_boosts']} - {team['total_deboosts']} = {int(team['total_boosts']) - int(team['total_deboosts'])} | {team['current_active_boosts']} - {team['current_active_deboosts']} = {team['current_active_boosts'] - team['current_active_deboosts']}")
 
 def checkLeaders(old, new):
     if len(old) != len(new):
