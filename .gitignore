@@ -1,0 +1,5 @@
+RE/
+test/
+*.1.*
+db.txt
+*Auth.json
