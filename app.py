@@ -23,8 +23,6 @@ POSITIONS = [
     "5th"
 ]
 
-#todo hourly stats
-
 MESSAGES = {
     "leader": [
         "Team {} is now in the lead!",
@@ -50,7 +48,6 @@ MESSAGES = {
 
 randMsg_leader = lambda leader: (random.choice(MESSAGES['leader']) if len(leader) == 1 else random.choice(MESSAGES['tie'])).format(formatLeader(leader))
 formatLeader = lambda leader: teamName(leader[0]) if len(leader) == 1 else f"{', '.join([teamName(t) for t in leader[:len(leader)-1]])} and {teamName(leader[-1])}"
-formatScore = lambda mult: int(mult*10)
 teamName = lambda team: TEAMS[team['teamid']-1]
 
 class GrandPrix():
@@ -71,19 +68,24 @@ class GrandPrix():
         try:
             self.sock = await websockets.connect("wss://community.steam-api.com/websocket/")
             await self.sock.send(json.dumps({ "message": "subscribe", "seqnum": 1, "feed": "TeamEventScores" }))
-        except:
+        except Exception as e:
             self.sock.close()
+            raise e
 
     async def main(self):
         while True:
-            try:
-                if not self.sock:
-                    await self.connect()
 
+            try:
+                # Connect if socket doesn't exist
+                if not self.sock: await self.connect()
+                
+                # Receive message
                 msg = await self.sock.recv()
+
             except KeyboardInterrupt:
                 self.sock.close()
                 exit()
+
             except Exception as e:
                 print(e)
                 await self.connect()
@@ -92,26 +94,24 @@ class GrandPrix():
             print(msg)
             data = json.loads(msg)
 
+            # Log packets to file
             try:
-                with open('db.txt', 'a') as f:
-                    f.write(json.dumps(data) +'\n')
+                with open('db.txt', 'a') as f: f.write(json.dumps(data) +'\n')
             except Exception:
                 pass
 
+            # Parse data, print errors and continue
             try:
                 await self.parse(data)
-            except KeyboardInterrupt:
-                self.sock.close()
-                exit()
             except Exception as e:
                 traceback.print_exc(e)
     
     async def tweet(self, msg, retry = 5):
-        if not self.twit:
-            return
+        if not self.twit: return
+
+        print('Tweeting:', msg)
 
         try:
-            print('Tweeting:', msg)
             self.twit.update_status(msg)
         except tweepy.error.TweepError as err:
             print('Failed to tweet:', err.api_code)
@@ -149,10 +149,13 @@ class GrandPrix():
 
             print(f"Day {feed['sale_day']+1} of the race!")
             print(f"Leader(s): {formatLeader(leaders)}")
-            print(f"TID{' '*5}Team{' '*2}Score{' '*4}Score%{' '*2}Mult_raw{' '*2}total boost-deboost | Current boost-deboost")
+            print(f"TID{' '*5}Team{' '*2}Score{' '*4}Score%{' '*2}Mult_raw{' '*10}Total boost-deboost{' '*20}Current boost-deboost")
 
             for team in scores:
-                print(f"{team['teamid']} {TEAMS[team['teamid']-1]:>10}: {team['score_dist']:.2f}{' '*3}{team['score_pct']:.3f}{' '*3}{team['current_multiplier']:.5f}{' '*3}{team['total_boosts']} - {team['total_deboosts']} = {int(team['total_boosts']) - int(team['total_deboosts'])} | {team['current_active_boosts']} - {team['current_active_deboosts']} = {team['current_active_boosts'] - team['current_active_deboosts']}")
+                totalBoost = f"{int(team['total_boosts']):>10,} - {int(team['total_deboosts']):>10,} = {int(team['total_boosts']) - int(team['total_deboosts']):>10,}"
+                currentBoost = f"{team['current_active_boosts']:>10,} - {team['current_active_deboosts']:>10,} = {team['current_active_boosts'] - team['current_active_deboosts']:>10,}"
+                print(f"{team['teamid']} {TEAMS[team['teamid']-1]:>10}: {team['score_dist']:.2f}{' '*3}{team['score_pct']:.3f}{' '*3}{team['current_multiplier']:.5f}  | {totalBoost:37} | {currentBoost:37}")
+
 
 def checkLeaders(old, new):
     if len(old) != len(new):
