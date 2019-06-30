@@ -5,6 +5,7 @@ import traceback
 import websockets
 import tweepy
 
+from datetime import datetime
 from os.path import exists
 
 TEAMS = [
@@ -43,12 +44,16 @@ MESSAGES = {
         "Teams {} are battling for the lead!",
         "Teams {} are fighting for the lead!",
         "Teams {} are fighting for 1st!"
+    ],
+    "leaderboard": [
+        "1st {}\n2nd {}\n3rd {}\n4th {}\n5th {}"
     ]
 }
 
 randMsg_leader = lambda leader: (random.choice(MESSAGES['leader']) if len(leader) == 1 else random.choice(MESSAGES['tie'])).format(formatLeader(leader))
 formatLeader = lambda leader: teamName(leader[0]) if len(leader) == 1 else f"{', '.join([teamName(t) for t in leader[:len(leader)-1]])} and {teamName(leader[-1])}"
 teamName = lambda team: TEAMS[team['teamid']-1]
+calcHour = lambda hour: hour-16+(0 if hour > 16 else 24)
 
 class GrandPrix():
     def __init__(self):
@@ -58,6 +63,7 @@ class GrandPrix():
         self.leaders = []
         self.scores = []
         self.day = -1
+        self.hour = -1
         
         asyncio.get_event_loop().run_until_complete(self.main())
 
@@ -130,31 +136,46 @@ class GrandPrix():
             leaders = [t for t in scores if 'score_dist' in t and t['score_pct'] == 1] # Check if scores exists | Day4 had no scores for the first msg
             leadersIDs = [t['teamid'] for t in leaders]
             leadermsg = randMsg_leader(leaders) if leaders else ""
+            currentHour = calcHour(datetime.utcnow().hour) #UTC time for consitency
 
+            # Final team placements
             if feed['sale_day'] != self.day:
                 if self.day != -1:
-                    finalscores = self.scores
-                    msg = f"Day {self.day+1} of the race has ended!\n1st {teamName(finalscores[0])}\n2nd {teamName(finalscores[1])}\n3rd {teamName(finalscores[2])}\n4th {teamName(finalscores[3])}\n5th {teamName(finalscores[4])}"
+                    msg = f"Day {self.day+1} of the race has ended!\n" + MESSAGES['leaderboard'][0].format(teamName(self.scores[0]), teamName(self.scores[1]), teamName(self.scores[2]), teamName(self.scores[3]), teamName(self.scores[4]))
                     print(msg)
                     await self.tweet(msg)
                 self.day = feed['sale_day']
 
+            # Check Team placement
             if checkLeaders(self.leaders, leadersIDs):
                 if self.leaders != []:
                     print(leadermsg)
                     await self.tweet(leadermsg)
                 self.leaders = leadersIDs
             
+            # Hourly Leaderboard
+            if currentHour != self.hour:
+                if self.hour not in [-1, 1, 24]: # Skip these hours
+                    msg = f"Entering hour {currentHour} of the race:\n"
+                    
+                    if currentHour == 23:
+                        msg = "Entering the final hour of the race!\n"
+                    
+                    msg += MESSAGES['leaderboard'][0].format(teamName(self.scores[0]), teamName(self.scores[1]), teamName(self.scores[2]), teamName(self.scores[3]), teamName(self.scores[4]))
+                    print(msg)
+                    await self.tweet(msg)
+                self.hour = currentHour
+
             self.scores = scores
 
-            print(f"Day {feed['sale_day']+1} of the race!")
+            print(f"Hour {currentHour} in Day {feed['sale_day']+1} of the race!")
             print(f"Leader(s): {formatLeader(leaders)}")
-            print(f"TID{' '*5}Team{' '*2}Score{' '*4}Score%{' '*2}Mult_raw{' '*10}Total boost-deboost{' '*20}Current boost-deboost")
+            print(f"TID{' '*5}Team{' '*3}Score{' '*4}Score%{' '*2}Mult_raw{' '*10}Total boost-deboost{' '*20}Current boost-deboost")
 
             for team in scores:
                 totalBoost = f"{int(team['total_boosts']):>10,} - {int(team['total_deboosts']):>10,} = {int(team['total_boosts']) - int(team['total_deboosts']):>10,}"
                 currentBoost = f"{team['current_active_boosts']:>10,} - {team['current_active_deboosts']:>10,} = {team['current_active_boosts'] - team['current_active_deboosts']:>10,}"
-                print(f"{team['teamid']} {TEAMS[team['teamid']-1]:>10}: {team['score_dist']:.2f}{' '*3}{team['score_pct']:.3f}{' '*3}{team['current_multiplier']:.5f}  | {totalBoost:37} | {currentBoost:37}")
+                print(f"{team['teamid']} {TEAMS[team['teamid']-1]:>10}: {team['score_dist']:>7.2f}{' '*3}{team['score_pct']:.3f}{' '*3}{team['current_multiplier']:.5f}  | {totalBoost:37} | {currentBoost:37}")
 
 
 def checkLeaders(old, new):

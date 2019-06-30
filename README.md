@@ -12,4 +12,3 @@ Todo:
 ---
 * Less spammy tweets
 * Change profile pic to winning team
-* Hourly leaderboard
