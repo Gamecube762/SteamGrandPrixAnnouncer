@@ -46,7 +46,8 @@ MESSAGES = {
         "Teams {} are fighting for 1st!"
     ],
     "leaderboard": [
-        "1st {}\n2nd {}\n3rd {}\n4th {}\n5th {}"
+        "1st {}\n2nd {}\n3rd {}\n4th {}\n5th {}",
+        "1st {} - {:,}km\n2nd {} - {:,}km\n3rd {} - {:,}km\n4th {} - {:,}km\n5th {} - {:,}km",
     ]
 }
 
@@ -56,8 +57,11 @@ teamName = lambda team: TEAMS[team['teamid']-1]
 calcHour = lambda hour: hour-16+(0 if hour > 16 else 24)
 
 class GrandPrix():
-    def __init__(self):
-        self.twit = twitInit()
+    def __init__(self, recordPackets = False, replayMode = False):
+        self.recordPackets = recordPackets
+        self.replaymode = replayMode
+
+        self.twit = twitInit() if not replayMode else None
         self.sock = None
 
         self.leaders = []
@@ -65,10 +69,10 @@ class GrandPrix():
         self.day = -1
         self.hour = -1
         
-        asyncio.get_event_loop().run_until_complete(self.main())
+        asyncio.get_event_loop().run_until_complete(self.main() if not replayMode else self.main_replaymode())
 
     def __del__(self):
-        self.sock.close()
+        if self.sock: self.sock.close()
 
     async def connect(self):
         try:
@@ -101,10 +105,11 @@ class GrandPrix():
             data = json.loads(msg)
 
             # Log packets to file
-            try:
-                with open('db.txt', 'a') as f: f.write(json.dumps(data) +'\n')
-            except Exception:
-                pass
+            if self.recordPackets:
+                try:
+                    with open('db.txt', 'a') as f: f.write(json.dumps(data) +'\n')
+                except Exception:
+                    print("Failed to write to 'db.txt'")
 
             # Parse data, print errors and continue
             try:
@@ -112,7 +117,26 @@ class GrandPrix():
             except Exception as e:
                 traceback.print_exc(e)
     
-    async def tweet(self, msg, retry = 5):
+    async def main_replaymode(self):
+        if not exists('replay.txt'):
+            print("'replay.txt' not found!")
+            return
+
+        with open('replay.txt', 'r') as f:
+            lines = [l for l in f.readlines() if l.strip()]
+            print(f"Replaying {len(lines)} packets.")
+
+            for msg in lines:
+                print(msg)
+                data = json.loads(msg)
+
+                # Parse data, print errors and continue
+                try:
+                    await self.parse(data)
+                except Exception as e:
+                    traceback.print_exc(e)
+
+    async def tweet(self, msg):
         if not self.twit: return
 
         print('Tweeting:', msg)
@@ -121,12 +145,6 @@ class GrandPrix():
             self.twit.update_status(msg)
         except tweepy.error.TweepError as err:
             print('Failed to tweet:', err.api_code)
-            if err.api_code == 187:
-                if retry < 0:
-                    return
-                retry -= 1
-                await asyncio.sleep(.1)
-                await self.tweet(msg + '-', retry)
 
     async def parse(self, data):
         if ("message" in data and data['message'] == "feedupdate" and data['feed'] == "TeamEventScores"):
@@ -141,27 +159,42 @@ class GrandPrix():
             # Final team placements
             if feed['sale_day'] != self.day:
                 if self.day != -1:
-                    msg = f"Day {self.day+1} of the race has ended!\n" + MESSAGES['leaderboard'][0].format(teamName(self.scores[0]), teamName(self.scores[1]), teamName(self.scores[2]), teamName(self.scores[3]), teamName(self.scores[4]))
+                    msg = f"Day {self.day+1} of the race has ended!\n" + MESSAGES['leaderboard'][1].format(
+                        teamName(self.scores[0]), int(self.scores[0]['score_dist']),
+                        teamName(self.scores[1]), int(self.scores[1]['score_dist']), 
+                        teamName(self.scores[2]), int(self.scores[2]['score_dist']), 
+                        teamName(self.scores[3]), int(self.scores[3]['score_dist']), 
+                        teamName(self.scores[4]), int(self.scores[4]['score_dist'])
+                    )
                     print(msg)
-                    await self.tweet(msg)
+                    # await self.tweet(msg)
                 self.day = feed['sale_day']
 
+            # Temp disabled in favor of Hourly leaderboard (It's just gonna be 1 tweet of Corgi in lead again, lets get something tweeting)
+            # TODO System to reduce spam
             # Check Team placement
-            if checkLeaders(self.leaders, leadersIDs):
-                if self.leaders != []:
-                    print(leadermsg)
-                    await self.tweet(leadermsg)
-                self.leaders = leadersIDs
+            #if checkLeaders(self.leaders, leadersIDs):
+            #    if self.leaders != []:
+            #        print(leadermsg)
+            #        await self.tweet(leadermsg)
+            #        self.leaders = leadersIDs
             
             # Hourly Leaderboard
             if currentHour != self.hour:
-                if self.hour not in [-1, 1, 24]: # Skip these hours
+                if self.hour not in [-1, 1]: # Skip these hours
                     msg = f"Entering hour {currentHour} of the race:\n"
                     
-                    if currentHour == 23:
+                    if currentHour == 24:
                         msg = "Entering the final hour of the race!\n"
                     
-                    msg += MESSAGES['leaderboard'][0].format(teamName(self.scores[0]), teamName(self.scores[1]), teamName(self.scores[2]), teamName(self.scores[3]), teamName(self.scores[4]))
+                    msg += MESSAGES['leaderboard'][1].format(
+                        teamName(scores[0]), int(scores[0]['score_dist']),
+                        teamName(scores[1]), int(scores[1]['score_dist']), 
+                        teamName(scores[2]), int(scores[2]['score_dist']), 
+                        teamName(scores[3]), int(scores[3]['score_dist']), 
+                        teamName(scores[4]), int(scores[4]['score_dist'])
+                    )
+                    
                     print(msg)
                     await self.tweet(msg)
                 self.hour = currentHour
@@ -202,4 +235,8 @@ def twitInit():
     return tweepy.API(twitauth)
 
 if __name__ == "__main__":
-    gp = GrandPrix()
+    from sys import argv
+    gp = GrandPrix(
+        recordPackets = '-p' in argv or '--recordPackets' in argv,
+        replayMode = '-r' in argv or '--replay' in argv
+    )
