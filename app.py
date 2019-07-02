@@ -167,7 +167,7 @@ class GrandPrix():
                         teamName(self.scores[4]), int(self.scores[4]['score_dist'])
                     )
                     print(msg)
-                    # await self.tweet(msg)
+                    await self.tweet(msg)
                 self.day = feed['sale_day']
 
             # Temp disabled in favor of Hourly leaderboard (It's just gonna be 1 tweet of Corgi in lead again, lets get something tweeting)
@@ -181,7 +181,7 @@ class GrandPrix():
             
             # Hourly Leaderboard
             if currentHour != self.hour:
-                if self.hour not in [-1, 1]: # Skip these hours
+                if self.hour != -1 and currentHour > 1: # Skip hour 1
                     msg = f"Entering hour {currentHour} of the race:\n"
                     
                     if currentHour == 24:
