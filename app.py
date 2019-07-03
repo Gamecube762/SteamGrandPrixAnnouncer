@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import asyncio
 import json
 import random
@@ -202,7 +204,7 @@ class GrandPrix():
 
             print(f"Hour {currentHour} in Day {feed['sale_day']+1} of the race!")
             print(f"Leader(s): {formatLeader(leaders)}")
-            print(f"TID{' '*5}Team{' '*4}Score{' '*7}Speed/hr{' '*5}Score%{' '*2}Mult_raw{' '*10}Total boost-deboost{' '*20}Current boost-deboost")
+            print(f"TID{' '*5}Team{' '*4}Score{' '*4}Est. Speed/hr{' '*3}Score%{' '*2}Mult_raw{' '*10}Total boost-deboost{' '*20}Current boost-deboost")
 
             for i in range(len(scores)):
                 team = scores[i]
