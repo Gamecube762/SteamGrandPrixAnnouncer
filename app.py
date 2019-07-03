@@ -55,6 +55,7 @@ randMsg_leader = lambda leader: (random.choice(MESSAGES['leader']) if len(leader
 formatLeader = lambda leader: teamName(leader[0]) if len(leader) == 1 else f"{', '.join([teamName(t) for t in leader[:len(leader)-1]])} and {teamName(leader[-1])}"
 teamName = lambda team: TEAMS[team['teamid']-1]
 calcHour = lambda hour: hour-16+(0 if hour > 16 else 24)
+calcSpeed = lambda newStat, oldStat: (newStat['score_dist'] - oldStat['score_dist']) * 3200
 
 class GrandPrix():
     def __init__(self, recordPackets = False, replayMode = False):
@@ -199,16 +200,18 @@ class GrandPrix():
                     await self.tweet(msg)
                 self.hour = currentHour
 
-            self.scores = scores
-
             print(f"Hour {currentHour} in Day {feed['sale_day']+1} of the race!")
             print(f"Leader(s): {formatLeader(leaders)}")
-            print(f"TID{' '*5}Team{' '*3}Score{' '*4}Score%{' '*2}Mult_raw{' '*10}Total boost-deboost{' '*20}Current boost-deboost")
+            print(f"TID{' '*5}Team{' '*4}Score{' '*7}Speed/hr{' '*5}Score%{' '*2}Mult_raw{' '*10}Total boost-deboost{' '*20}Current boost-deboost")
 
-            for team in scores:
+            for i in range(len(scores)):
+                team = scores[i]
+                speed = calcSpeed(team, self.scores[i]) if self.scores else 0
                 totalBoost = f"{int(team['total_boosts']):>10,} - {int(team['total_deboosts']):>10,} = {int(team['total_boosts']) - int(team['total_deboosts']):>10,}"
                 currentBoost = f"{team['current_active_boosts']:>10,} - {team['current_active_deboosts']:>10,} = {team['current_active_boosts'] - team['current_active_deboosts']:>10,}"
-                print(f"{team['teamid']} {TEAMS[team['teamid']-1]:>10}: {team['score_dist']:>7.2f}{' '*3}{team['score_pct']:.3f}{' '*3}{team['current_multiplier']:.5f}  | {totalBoost:37} | {currentBoost:37}")
+                print(f"{team['teamid']} {TEAMS[team['teamid']-1]:>10}: {team['score_dist']:>7.2f}km{' '*3}{speed:>7.2f}km/hr{' '*3}{team['score_pct']:.3f}{' '*3}{team['current_multiplier']:.5f}  | {totalBoost:37} | {currentBoost:37}")
+
+            self.scores = scores
 
 
 def checkLeaders(old, new):
