@@ -152,7 +152,7 @@ class GrandPrix():
     async def parse(self, data):
         if ("message" in data and data['message'] == "feedupdate" and data['feed'] == "TeamEventScores"):
             feed = json.loads(data['data'])
-            scores = feed['scores']
+            scores = [fixScores(t) for t in feed['scores']]
             scores.sort(key = lambda i: i['score_dist'], reverse = True)
             leaders = [t for t in scores if 'score_dist' in t and t['score_pct'] == 1] # Check if scores exists | Day4 had no scores for the first msg
             leadersIDs = [t['teamid'] for t in leaders]
@@ -215,6 +215,21 @@ class GrandPrix():
 
             self.scores = scores
 
+DEFAULT_SCORES = [
+    "score_pct",
+    "score_dist",
+    "total_boosts",
+    "total_deboosts",
+    "current_multiplier",
+    "current_multiplier_boosts",
+    "current_active_boosts",
+    "current_active_deboosts"
+]
+
+def fixScores(team):
+    for i in DEFAULT_SCORES:
+        if i not in team: team[i] = 0
+    return team
 
 def checkLeaders(old, new):
     if len(old) != len(new):
